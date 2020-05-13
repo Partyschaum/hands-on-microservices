@@ -10,14 +10,8 @@ class ServiceUtil(
         @param:Value("\${server.port}")
         private val port: String
 ) {
-    var serviceAddress: String? = null
-        get() {
-            if (field == null) {
-                field = findMyHostname() + "/" + findMyIpAddress() + ":" + port
-            }
-            return field
-        }
-        private set
+    val serviceAddress: String
+        get() = findMyHostname() + "/" + findMyIpAddress() + ":" + port
 
     private fun findMyHostname(): String = try {
         InetAddress.getLocalHost().hostName

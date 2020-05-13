@@ -16,6 +16,8 @@ repositories {
 }
 
 dependencies {
+	implementation(project(":api"))
+	implementation(project(":util"))
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
 	implementation("org.springframework.boot:spring-boot-starter-webflux")
 	implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
