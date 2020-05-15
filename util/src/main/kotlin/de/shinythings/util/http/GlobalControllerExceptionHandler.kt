@@ -17,15 +17,15 @@ internal class GlobalControllerExceptionHandler {
 
     private val logger = LoggerFactory.getLogger(GlobalControllerExceptionHandler::class.java)
 
-    @ResponseStatus(NOT_FOUND)
     @ExceptionHandler(NotFoundException::class)
+    @ResponseStatus(NOT_FOUND)
     @ResponseBody
     fun handleNotFoundExceptions(request: ServerHttpRequest, ex: Exception): HttpErrorInfo {
         return createHttpErrorInfo(NOT_FOUND, request, ex)
     }
 
-    @ResponseStatus(UNPROCESSABLE_ENTITY)
     @ExceptionHandler(InvalidInputException::class)
+    @ResponseStatus(UNPROCESSABLE_ENTITY)
     @ResponseBody
     fun handleInvalidInputException(request: ServerHttpRequest, ex: Exception): HttpErrorInfo {
         return createHttpErrorInfo(UNPROCESSABLE_ENTITY, request, ex)

@@ -1,8 +1,8 @@
 package de.shinythings.api.core.product
 
 data class Product(
-        val productId: Int = 0,
-        val name: String? = null,
-        val weight: Int = 0,
-        val serviceAddress: String? = null
+        val productId: Int,
+        val name: String,
+        val weight: Int,
+        val serviceAddress: String
 )

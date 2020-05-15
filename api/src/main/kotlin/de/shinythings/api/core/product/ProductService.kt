@@ -9,5 +9,5 @@ interface ProductService {
             value = ["/product/{productId}"],
             produces = ["application/json"]
     )
-    fun getProduct(@PathVariable productId: Int): Product
+    fun getProduct(@PathVariable productId: Int): Product?
 }

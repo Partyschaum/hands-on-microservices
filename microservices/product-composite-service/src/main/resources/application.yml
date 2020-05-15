@@ -1,0 +1,20 @@
+server.port: 7000
+
+app:
+  product-service:
+    host: localhost
+    port: 7001
+    https: false
+  recommendation-service:
+    host: localhost
+    port: 7002
+    https: false
+  review-service:
+    host: localhost
+    port: 7003
+    https: false
+
+logging:
+  level:
+    root: INFO
+    de.shinythings: DEBUG
