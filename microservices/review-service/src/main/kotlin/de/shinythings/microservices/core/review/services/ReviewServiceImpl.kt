@@ -18,7 +18,7 @@ class ReviewServiceImpl(private val serviceUtil: ServiceUtil) : ReviewService {
 
         if (productId == 213) {
             logger.debug("No reviews found for productId: {}", productId)
-            return ArrayList()
+            return emptyList()
         }
 
         val list = listOf(

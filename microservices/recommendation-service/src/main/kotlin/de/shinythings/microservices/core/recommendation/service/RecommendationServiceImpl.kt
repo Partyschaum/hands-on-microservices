@@ -18,7 +18,7 @@ class RecommendationServiceImpl(private val serviceUtil: ServiceUtil) : Recommen
 
         if (productId == 113) {
             logger.debug("No recommendations found for productId: {}", productId)
-            return ArrayList()
+            return emptyList()
         }
 
         val list = listOf(
