@@ -128,6 +128,7 @@ class ProductCompositeIntegration(
     private fun errorMessage(ex: HttpClientErrorException): String? = try {
         objectMapper.readValue(ex.responseBodyAsString, HttpErrorInfo::class.java).message
     } catch (_: IOException) {
+        logger.warn("Could not deserialize HttpErrorInfo from {}", ex.responseBodyAsString)
         ex.message
     }
 }
