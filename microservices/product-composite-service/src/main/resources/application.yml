@@ -1,4 +1,5 @@
-server.port: 7000
+server:
+  port: 7000
 
 app:
   product-service:
@@ -18,3 +19,24 @@ logging:
   level:
     root: INFO
     de.shinythings: DEBUG
+
+---
+spring:
+  profiles: docker
+
+server:
+  port: 8080
+
+app:
+  product-service:
+    host: product
+    port: 8080
+    https: false
+  recommendation-service:
+    host: recommendation
+    port: 8080
+    https: false
+  review-service:
+    host: review
+    port: 8080
+    https: false

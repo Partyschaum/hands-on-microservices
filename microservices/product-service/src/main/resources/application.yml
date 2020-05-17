@@ -1,6 +1,14 @@
-server.port: 7001
+server:
+  port: 7001
 
 logging:
   level:
     root: INFO
     de.shinythings: DEBUG
+
+---
+spring:
+  profiles: docker
+
+server:
+  port: 8080
