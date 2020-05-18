@@ -11,10 +11,10 @@ import org.springframework.data.mongodb.core.mapping.Document
 data class ProductEntity(
 
         @Id
-        val id: String?,
+        var id: String? = null,
 
         @Version
-        val version: Int?,
+        var version: Int? = null,
 
         @Indexed(unique = true)
         val productId: Int,
