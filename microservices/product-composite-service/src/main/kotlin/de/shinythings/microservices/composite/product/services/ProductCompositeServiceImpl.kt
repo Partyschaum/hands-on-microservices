@@ -48,9 +48,9 @@ class ProductCompositeServiceImpl(
             )
         }
 
-        val productAddress = product.serviceAddress
-        val reviewAddress = if (reviews.isNotEmpty()) reviews[0].serviceAddress else ""
-        val recommendationAddress = if (recommendations.isNotEmpty()) recommendations[0].serviceAddress else ""
+        val productAddress = product.serviceAddress.orEmpty()
+        val reviewAddress = if (reviews.isNotEmpty()) reviews[0].serviceAddress.orEmpty() else ""
+        val recommendationAddress = if (recommendations.isNotEmpty()) recommendations[0].serviceAddress.orEmpty() else ""
         val serviceAddresses = ServiceAddresses(serviceAddress, productAddress, reviewAddress, recommendationAddress)
 
         return ProductAggregate(
