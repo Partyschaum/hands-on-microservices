@@ -12,10 +12,10 @@ import org.springframework.data.mongodb.core.mapping.Document
 data class RecommendationEntity(
 
         @Id
-        val id: String?,
+        var id: String? = null,
 
         @Version
-        val version: Int?,
+        var version: Int? = null,
 
         val productId: Int,
         val recommendationId: Int,
