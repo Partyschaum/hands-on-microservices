@@ -1,7 +1,6 @@
 package de.shinythings.api.core.recommendation
 
-import org.springframework.web.bind.annotation.GetMapping
-import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.*
 
 interface RecommendationService {
 
@@ -10,4 +9,16 @@ interface RecommendationService {
             produces = ["application/json"]
     )
     fun getRecommendations(@RequestParam(value = "productId", required = true) productId: Int): List<Recommendation>
+
+    @PostMapping(
+            value = ["/recommendation"],
+            consumes = ["application/json"],
+            produces = ["application/json"]
+    )
+    fun createRecommendation(@RequestBody body: Recommendation): Recommendation
+
+    @DeleteMapping(
+            value = ["/recommendation"]
+    )
+    fun deleteRecommendations(@RequestParam(value = "productId", required = true) productId: Int)
 }
