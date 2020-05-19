@@ -13,10 +13,10 @@ data class ReviewEntity(
 
         @Id
         @GeneratedValue
-        val id: Int?,
+        val id: Int? = null,
 
         @Version
-        val version: Int?,
+        val version: Int? = null,
 
         val productId: Int,
         val reviewId: Int,
