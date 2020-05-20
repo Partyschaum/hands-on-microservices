@@ -69,15 +69,33 @@ class ProductCompositeIntegration(
         return try {
             restTemplate.getForObject(productServiceUrlBuilder.build(productId), Product::class.java)
         } catch (ex: HttpClientErrorException) {
-            when (ex.statusCode) {
-                NOT_FOUND -> throw NotFoundException(errorMessage(ex))
-                UNPROCESSABLE_ENTITY -> throw InvalidInputException(errorMessage(ex))
-                else -> {
-                    logger.warn("Got a unexpected HTTP error: {}, will rethrow it", ex.statusCode)
-                    logger.warn("Error body: {}", ex.responseBodyAsString)
-                    throw ex
-                }
+            throw handleHttpClientException(ex)
+        }
+    }
+
+    override fun createProduct(body: Product): Product {
+        return try {
+            val uri = productServiceUrlBuilder.build().toUri()
+
+            logger.debug("Will post a new product to URL: {}", uri)
+
+            restTemplate.postForObject(uri, body, Product::class.java)!!.also {
+                logger.debug("Created a product with id: {}", it.productId)
             }
+        } catch (ex: HttpClientErrorException) {
+            throw handleHttpClientException(ex)
+        }
+    }
+
+    override fun deleteProduct(productId: Int) {
+        try {
+            val uri = productServiceUrlBuilder.build(productId)
+
+            logger.debug("Will call the deleteProduct API on URL: {}", uri)
+
+            restTemplate.delete(uri)
+        } catch (ex: HttpClientErrorException) {
+            throw handleHttpClientException(ex)
         }
     }
 
@@ -103,6 +121,32 @@ class ProductCompositeIntegration(
         }
     }
 
+    override fun createRecommendation(body: Recommendation): Recommendation {
+        return try {
+            val uri = recommendationServiceUrlBuilder.build().toUri()
+
+            logger.debug("Will post a new recommendation to URL: {}", uri)
+
+            restTemplate.postForObject(uri, body, Recommendation::class.java)!!.also {
+                logger.debug("Created a recommendation with id: {}", it.productId)
+            }
+        } catch (ex: HttpClientErrorException) {
+            throw handleHttpClientException(ex)
+        }
+    }
+
+    override fun deleteRecommendations(productId: Int) {
+        try {
+            val uri = recommendationServiceUrlBuilder.build(productId)
+
+            logger.debug("Will call the deleteRecommendations API on URL: {}", uri)
+
+            restTemplate.delete(uri)
+        } catch (ex: HttpClientErrorException) {
+            throw handleHttpClientException(ex)
+        }
+    }
+
     override fun getReviews(productId: Int): List<Review> {
         return try {
             val uri = reviewServiceUrlBuilder.build(productId)
@@ -122,6 +166,42 @@ class ProductCompositeIntegration(
         } catch (ex: Exception) {
             logger.warn("Got an exception while requesting reviews, return zero reviews: {}", ex.message)
             return emptyList()
+        }
+    }
+
+    override fun createReview(body: Review): Review {
+        return try {
+            val uri = reviewServiceUrlBuilder.build().toUri()
+
+            logger.debug("Will post a new review to URL: {}", uri)
+
+            restTemplate.postForObject(uri, body, Review::class.java)!!.also {
+                logger.debug("Created a review with id: {}", it.productId)
+            }
+        } catch (ex: HttpClientErrorException) {
+            throw handleHttpClientException(ex)
+        }
+    }
+
+    override fun deleteReviews(productId: Int) {
+        try {
+            val url = reviewServiceUrlBuilder.build(productId)
+
+            logger.debug("Will call the deleteReviews API on URL: {}", url)
+
+            restTemplate.delete(url)
+        } catch (ex: HttpClientErrorException) {
+            throw handleHttpClientException(ex)
+        }
+    }
+
+    private fun handleHttpClientException(ex: HttpClientErrorException) = when (ex.statusCode) {
+        NOT_FOUND -> NotFoundException(errorMessage(ex))
+        UNPROCESSABLE_ENTITY -> InvalidInputException(errorMessage(ex))
+        else -> {
+            logger.warn("Got a unexpected HTTP error: {}, will rethrow it", ex.statusCode)
+            logger.warn("Error body: {}", ex.responseBodyAsString)
+            ex
         }
     }
 

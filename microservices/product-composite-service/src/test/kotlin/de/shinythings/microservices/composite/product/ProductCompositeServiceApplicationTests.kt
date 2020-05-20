@@ -1,5 +1,9 @@
 package de.shinythings.microservices.composite.product
 
+import de.shinythings.api.composite.product.ProductAggregate
+import de.shinythings.api.composite.product.RecommendationSummary
+import de.shinythings.api.composite.product.ReviewSummary
+import de.shinythings.api.composite.product.ServiceAddresses
 import de.shinythings.api.core.product.Product
 import de.shinythings.api.core.recommendation.Recommendation
 import de.shinythings.api.core.review.Review
@@ -16,8 +20,11 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.test.context.SpringBootTest.WebEnvironment.RANDOM_PORT
 import org.springframework.boot.test.mock.mockito.MockBean
 import org.springframework.http.HttpStatus
-import org.springframework.http.MediaType
+import org.springframework.http.HttpStatus.OK
+import org.springframework.http.MediaType.APPLICATION_JSON
 import org.springframework.test.web.reactive.server.WebTestClient
+import org.springframework.test.web.reactive.server.WebTestClient.BodyContentSpec
+import reactor.core.publisher.Mono.just
 
 @SpringBootTest(webEnvironment = RANDOM_PORT)
 @AutoConfigureWebTestClient
@@ -48,20 +55,9 @@ class ProductCompositeServiceApplicationTests {
                 .thenThrow(InvalidInputException("INVALID: $PRODUCT_ID_INVALID"))
     }
 
-
-    @Test
-    fun contextLoads() {
-    }
-
     @Test
     fun getProductById() {
-        client.get()
-                .uri("/product-composite/$PRODUCT_ID_OK")
-                .accept(MediaType.APPLICATION_JSON)
-                .exchange()
-                .expectStatus().isOk
-                .expectHeader().contentType(MediaType.APPLICATION_JSON)
-                .expectBody()
+        getAndVerifyProduct(PRODUCT_ID_OK, OK)
                 .jsonPath("$.productId").isEqualTo(PRODUCT_ID_OK)
                 .jsonPath("$.recommendations.length()").isEqualTo(1)
                 .jsonPath("$.reviews.length()").isEqualTo(1)
@@ -69,28 +65,121 @@ class ProductCompositeServiceApplicationTests {
 
     @Test
     fun getProductNotFound() {
-        client.get()
-                .uri("/product-composite/$PRODUCT_ID_NOT_FOUND")
-                .accept(MediaType.APPLICATION_JSON)
-                .exchange()
-                .expectStatus().isNotFound
-                .expectHeader().contentType(MediaType.APPLICATION_JSON)
-                .expectBody()
+        getAndVerifyProduct(PRODUCT_ID_NOT_FOUND, HttpStatus.NOT_FOUND)
                 .jsonPath("$.path").isEqualTo("/product-composite/$PRODUCT_ID_NOT_FOUND")
                 .jsonPath("$.message").isEqualTo("NOT FOUND: $PRODUCT_ID_NOT_FOUND")
     }
 
     @Test
     fun getProductInvalidInput() {
-        client.get()
-                .uri("/product-composite/$PRODUCT_ID_INVALID")
-                .accept(MediaType.APPLICATION_JSON)
+        getAndVerifyProduct(PRODUCT_ID_NOT_FOUND, HttpStatus.NOT_FOUND)
+                .jsonPath("$.path").isEqualTo("/product-composite/$PRODUCT_ID_NOT_FOUND")
+                .jsonPath("$.message").isEqualTo("NOT FOUND: $PRODUCT_ID_NOT_FOUND")
+    }
+
+    @Test
+    fun createCompositeProduct1() {
+        val compositeProduct = ProductAggregate(
+                productId = 1,
+                name = "name",
+                weight = 1,
+                recommendations = emptyList(),
+                reviews = emptyList(),
+                serviceAddresses = ServiceAddresses(
+                        compositeAddress = "CompositeAddress",
+                        productAddress = "ProductAddress",
+                        reviewAddress = "ReviewAddress",
+                        recommendationAddress = "RecommendationAddress"
+                )
+        )
+
+        postAndVerifyProduct(compositeProduct, OK)
+    }
+
+    @Test
+    fun createCompositeProduct2() {
+        val compositeProduct = ProductAggregate(
+                productId = 1,
+                name = "name",
+                weight = 1,
+                recommendations = listOf(RecommendationSummary(
+                        recommendationId = 1,
+                        author = "a",
+                        rate = 1,
+                        content = "c"
+                )),
+                reviews = listOf(ReviewSummary(
+                        reviewId = 1,
+                        author = "a",
+                        subject = "s",
+                        content = "c"
+                )),
+                serviceAddresses = ServiceAddresses(
+                        compositeAddress = "CompositeAddress",
+                        productAddress = "ProductAddress",
+                        reviewAddress = "ReviewAddress",
+                        recommendationAddress = "RecommendationAddress"
+                )
+        )
+
+        postAndVerifyProduct(compositeProduct, OK)
+    }
+
+    @Test
+    fun deleteCompositeProduct() {
+        val compositeProduct = ProductAggregate(
+                productId = 1,
+                name = "name",
+                weight = 1,
+                recommendations = listOf(RecommendationSummary(
+                        recommendationId = 1,
+                        author = "a",
+                        rate = 1,
+                        content = "c"
+                )),
+                reviews = listOf(ReviewSummary(
+                        reviewId = 1,
+                        author = "a",
+                        subject = "s",
+                        content = "c"
+                )),
+                serviceAddresses = ServiceAddresses(
+                        compositeAddress = "CompositeAddress",
+                        productAddress = "ProductAddress",
+                        reviewAddress = "ReviewAddress",
+                        recommendationAddress = "RecommendationAddress"
+                )
+        )
+
+        postAndVerifyProduct(compositeProduct, OK)
+
+        deleteAndVerifyProduct(compositeProduct.productId, OK)
+        deleteAndVerifyProduct(compositeProduct.productId, OK)
+    }
+
+    private fun getAndVerifyProduct(productId: Int, expectedStatus: HttpStatus): BodyContentSpec {
+        return client.get()
+                .uri("/product-composite/$productId")
+                .accept(APPLICATION_JSON)
                 .exchange()
-                .expectStatus().isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY)
-                .expectHeader().contentType(MediaType.APPLICATION_JSON)
+                .expectStatus().isEqualTo(expectedStatus)
+                .expectHeader().contentType(APPLICATION_JSON)
                 .expectBody()
-                .jsonPath("$.path").isEqualTo("/product-composite/$PRODUCT_ID_INVALID")
-                .jsonPath("$.message").isEqualTo("INVALID: $PRODUCT_ID_INVALID")
+    }
+
+    private fun postAndVerifyProduct(compositeProduct: ProductAggregate, expectedStatus: HttpStatus) {
+        client.post()
+                .uri("/product-composite")
+                .body(just(compositeProduct), ProductAggregate::class.java)
+                .exchange()
+                .expectStatus().isEqualTo(expectedStatus)
+    }
+
+    private fun deleteAndVerifyProduct(productId: Int, expectedStatus: HttpStatus) {
+        client.delete()
+                .uri("/product-composite/$productId")
+                .exchange()
+                .expectStatus().isEqualTo(expectedStatus)
     }
 
     companion object {
