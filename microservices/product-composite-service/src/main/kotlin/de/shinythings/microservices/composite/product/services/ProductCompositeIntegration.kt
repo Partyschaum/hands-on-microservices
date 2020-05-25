@@ -21,6 +21,7 @@ import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.RestTemplate
 import org.springframework.web.util.UriComponentsBuilder
 import java.io.IOException
+import java.net.URI
 
 @Component
 class ProductCompositeIntegration(
@@ -42,32 +43,9 @@ class ProductCompositeIntegration(
 
     private val logger = LoggerFactory.getLogger(ProductCompositeIntegration::class.java)
 
-    private val productServiceUrlBuilder = UriComponentsBuilder.newInstance().apply {
-        scheme(if (productServiceHttps) "https" else "http")
-        host(productServiceHost)
-        port(productServicePort)
-        path("product/{productId}")
-    }
-
-    private val recommendationServiceUrlBuilder = UriComponentsBuilder.newInstance().apply {
-        scheme(if (recommendationServiceHttps) "https" else "http")
-        host(recommendationServiceHost)
-        port(recommendationServicePort)
-        path("recommendation")
-        query("productId={productId}")
-    }
-
-    private val reviewServiceUrlBuilder = UriComponentsBuilder.newInstance().apply {
-        scheme(if (reviewServiceHttps) "https" else "http")
-        host(reviewServiceHost)
-        port(reviewServicePort)
-        path("review")
-        query("productId={productId}")
-    }
-
     override fun getProduct(productId: Int): Product? {
         return try {
-            restTemplate.getForObject(productServiceUrlBuilder.build(productId), Product::class.java)
+            restTemplate.getForObject(productServiceUrl(productId), Product::class.java)
         } catch (ex: HttpClientErrorException) {
             throw handleHttpClientException(ex)
         }
@@ -75,7 +53,7 @@ class ProductCompositeIntegration(
 
     override fun createProduct(body: Product): Product {
         return try {
-            val uri = productServiceUrlBuilder.build().toUri()
+            val uri = productServiceUrl()
 
             logger.debug("Will post a new product to URL: {}", uri)
 
@@ -89,7 +67,7 @@ class ProductCompositeIntegration(
 
     override fun deleteProduct(productId: Int) {
         try {
-            val uri = productServiceUrlBuilder.build(productId)
+            val uri = productServiceUrl(productId)
 
             logger.debug("Will call the deleteProduct API on URL: {}", uri)
 
@@ -101,7 +79,7 @@ class ProductCompositeIntegration(
 
     override fun getRecommendations(productId: Int): List<Recommendation> {
         return try {
-            val uri = recommendationServiceUrlBuilder.build(productId)
+            val uri = recommendationServiceUrl(productId)
 
             logger.debug("Will call getRecommendations API on URL: {}", uri)
 
@@ -123,7 +101,7 @@ class ProductCompositeIntegration(
 
     override fun createRecommendation(body: Recommendation): Recommendation {
         return try {
-            val uri = recommendationServiceUrlBuilder.build().toUri()
+            val uri = recommendationServiceUrl()
 
             logger.debug("Will post a new recommendation to URL: {}", uri)
 
@@ -137,7 +115,7 @@ class ProductCompositeIntegration(
 
     override fun deleteRecommendations(productId: Int) {
         try {
-            val uri = recommendationServiceUrlBuilder.build(productId)
+            val uri = recommendationServiceUrl(productId)
 
             logger.debug("Will call the deleteRecommendations API on URL: {}", uri)
 
@@ -149,7 +127,7 @@ class ProductCompositeIntegration(
 
     override fun getReviews(productId: Int): List<Review> {
         return try {
-            val uri = reviewServiceUrlBuilder.build(productId)
+            val uri = reviewServiceUrl(productId)
 
             logger.debug("Will call getReviews API on URL: {}", uri)
 
@@ -171,7 +149,7 @@ class ProductCompositeIntegration(
 
     override fun createReview(body: Review): Review {
         return try {
-            val uri = reviewServiceUrlBuilder.build().toUri()
+            val uri = reviewServiceUrl()
 
             logger.debug("Will post a new review to URL: {}", uri)
 
@@ -185,7 +163,7 @@ class ProductCompositeIntegration(
 
     override fun deleteReviews(productId: Int) {
         try {
-            val url = reviewServiceUrlBuilder.build(productId)
+            val url = reviewServiceUrl(productId)
 
             logger.debug("Will call the deleteReviews API on URL: {}", url)
 
@@ -193,6 +171,35 @@ class ProductCompositeIntegration(
         } catch (ex: HttpClientErrorException) {
             throw handleHttpClientException(ex)
         }
+    }
+
+    private fun productServiceUrl(productId: Int? = null): URI {
+        return UriComponentsBuilder.newInstance().apply {
+            scheme(if (productServiceHttps) "https" else "http")
+            host(productServiceHost)
+            port(productServicePort)
+            if (productId != null) path("product/{productId}") else path("product")
+        }.build(productId)
+    }
+
+    private fun recommendationServiceUrl(productId: Int? = null): URI {
+        return UriComponentsBuilder.newInstance().apply {
+            scheme(if (recommendationServiceHttps) "https" else "http")
+            host(recommendationServiceHost)
+            port(recommendationServicePort)
+            path("recommendation")
+            if (productId != null) query("productId={productId}")
+        }.build(productId)
+    }
+
+    private fun reviewServiceUrl(productId: Int? = null): URI {
+        return UriComponentsBuilder.newInstance().apply {
+            scheme(if (reviewServiceHttps) "https" else "http")
+            host(reviewServiceHost)
+            port(reviewServicePort)
+            path("review")
+            if (productId != null) query("productId={productId}")
+        }.build(productId)
     }
 
     private fun handleHttpClientException(ex: HttpClientErrorException) = when (ex.statusCode) {
