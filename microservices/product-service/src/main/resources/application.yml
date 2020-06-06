@@ -12,6 +12,8 @@ logging:
     de.shinythings: debug
     org.springframework.data.mongodb.core.MongoTemplate: debug
 
+debug: true
+
 ---
 spring:
   profiles: docker

@@ -1,6 +1,7 @@
 package de.shinythings.api.core.product
 
 import org.springframework.web.bind.annotation.*
+import reactor.core.publisher.Mono
 
 interface ProductService {
 
@@ -8,7 +9,7 @@ interface ProductService {
             value = ["/product/{productId}"],
             produces = ["application/json"]
     )
-    fun getProduct(@PathVariable productId: Int): Product?
+    fun getProduct(@PathVariable productId: Int): Mono<Product>
 
     @PostMapping(
             value = ["/product"],

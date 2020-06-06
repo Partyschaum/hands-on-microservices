@@ -2,17 +2,14 @@ package de.shinythings.microservices.core.product
 
 import de.shinythings.microservices.core.product.persistence.ProductEntity
 import de.shinythings.microservices.core.product.persistence.ProductRepository
-import org.junit.jupiter.api.*
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.TestInstance
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.data.mongo.DataMongoTest
 import org.springframework.dao.DuplicateKeyException
 import org.springframework.dao.OptimisticLockingFailureException
-import org.springframework.data.domain.PageRequest
-import org.springframework.data.domain.Pageable
-import org.springframework.data.domain.Sort
-import org.springframework.data.repository.findByIdOrNull
+import reactor.test.StepVerifier
 
 @DataMongoTest
 @TestInstance(TestInstance.Lifecycle.PER_METHOD)
@@ -25,111 +22,104 @@ class PersistenceTests {
 
     @BeforeEach
     fun setupDb() {
-        repository.deleteAll()
+        StepVerifier.create(repository.deleteAll()).verifyComplete()
 
         val entity = ProductEntity(productId = 1, name = "n", weight = 1)
-        savedEntity = repository.save(entity)
 
-        assertEqualsProduct(entity, savedEntity)
+        StepVerifier.create(repository.save(entity))
+                .expectNextMatches { savedEntity ->
+                    areProductsEqual(entity, savedEntity)
+                }
+                .verifyComplete()
     }
 
     @Test
     fun create() {
         val newEntity = ProductEntity(productId = 2, name = "n", weight = 2)
-        repository.save(newEntity)
 
-        val foundEntity = repository.findByIdOrNull(newEntity.id!!)!!
+        StepVerifier.create(repository.save(newEntity))
+                .expectNextMatches { savedEntity ->
+                    newEntity.productId == savedEntity.productId
+                }
+                .verifyComplete()
 
-        assertEqualsProduct(newEntity, foundEntity)
-        assertEquals(2, repository.count())
+        StepVerifier.create(repository.findById(newEntity.id!!))
+                .expectNextMatches { foundEntity ->
+                    areProductsEqual(newEntity, foundEntity)
+                }
+                .verifyComplete()
+
+        StepVerifier.create(repository.count()).expectNext(2).verifyComplete()
     }
 
     @Test
     fun update() {
         savedEntity = savedEntity.copy(name = "n2")
-        repository.save(savedEntity)
 
-        val foundEntity = repository.findByIdOrNull(savedEntity.id!!)!!
+        StepVerifier.create(repository.save(savedEntity))
+                .expectNextMatches { savedEntity ->
+                    savedEntity.version == 1 && savedEntity.name == "n2"
+                }
+                .verifyComplete()
 
-        assertEquals(1, foundEntity.version)
-        assertEquals("n2", foundEntity.name)
+        StepVerifier.create(repository.findById(savedEntity.id!!))
+                .expectNextMatches { foundEntity ->
+                    foundEntity.version == 1 && foundEntity.name == "n2"
+                }
+                .verifyComplete()
     }
 
     @Test
     fun delete() {
-        repository.delete(savedEntity)
-
-        assertFalse(repository.existsById(savedEntity.id!!))
+        StepVerifier.create(repository.delete(savedEntity)).verifyComplete()
+        StepVerifier.create(repository.existsById(savedEntity.id!!)).expectNext(false).verifyComplete()
     }
 
     @Test
     fun getByProductId() {
-        val entity = repository.findByProductId(savedEntity.productId)!!
-
-        assertEqualsProduct(savedEntity, entity)
+        StepVerifier.create(repository.findByProductId(savedEntity.productId))
+                .expectNextMatches { foundEntity ->
+                    areProductsEqual(savedEntity, foundEntity)
+                }
+                .verifyComplete()
     }
 
     @Test
     fun duplicateError() {
-        assertThrows<DuplicateKeyException> {
-            val entity = ProductEntity(productId = savedEntity.productId, name = "n", weight = 1)
-            repository.save(entity)
-        }
+        val entity = ProductEntity(productId = savedEntity.productId, name = "n", weight = 1)
+
+        StepVerifier.create(repository.save(entity))
+                .expectError(DuplicateKeyException::class.java)
+                .verify()
     }
 
     @Test
     fun optimisticLockError() {
         // Store the saved entity in two separate entity objects
-        val entity1 = repository.findByIdOrNull(savedEntity.id)!!
-        val entity2 = repository.findByIdOrNull(savedEntity.id)!!
+        val entity1 = repository.findById(savedEntity.id!!).block()!!
+        val entity2 = repository.findById(savedEntity.id!!).block()!!
 
         // Update the entity using the first entity object
-        repository.save(entity1.copy(name = "n1"))
+        repository.save(entity1.copy(name = "n1")).block()
 
         // Update the entity using the second entity object.
         // This should fail since the second entity now holds a old version number, i.e. a Optimistic Lock Error
-        try {
-            repository.save(entity2)
-            fail("Expected an OptimisticLockingFailureException")
-        } catch (e: OptimisticLockingFailureException) {
-        }
+        StepVerifier.create(repository.save(entity2))
+                .expectError(OptimisticLockingFailureException::class.java)
+                .verify()
 
         // Get the updated entity from the database and verify its new state
-        val updatedEntity = repository.findByIdOrNull(savedEntity.id)!!
-
-        assertEquals(1, updatedEntity.version)
-        assertEquals("n1", updatedEntity.name)
+        StepVerifier.create(repository.findById(savedEntity.id!!))
+                .expectNextMatches { foundEntity ->
+                    foundEntity.version == 1 && foundEntity.name == "n1"
+                }
     }
 
-    @Test
-    fun paging() {
-        repository.deleteAll()
-
-        val newProducts = (1001..1010).map {
-            ProductEntity(productId = it, name = "name $it", weight = it)
-        }
-
-        repository.saveAll(newProducts)
-
-        var nextPage: Pageable = PageRequest.of(0, 4, Sort.Direction.ASC, "productId")
-
-        nextPage = testNextPage(nextPage, "[1001, 1002, 1003, 1004]", true)
-        nextPage = testNextPage(nextPage, "[1005, 1006, 1007, 1008]", true)
-        testNextPage(nextPage, "[1009, 1010]", false)
-    }
-
-    private fun testNextPage(nextPage: Pageable, expectedProductIds: String, expectsNextPage: Boolean): Pageable {
-        val productPage = repository.findAll(nextPage)
-        assertEquals(expectedProductIds, productPage.content.map { p -> p.productId }.toString())
-        assertEquals(expectsNextPage, productPage.hasNext())
-        return productPage.nextPageable()
-    }
-
-    private fun assertEqualsProduct(expectedEntity: ProductEntity, actualEntity: ProductEntity) {
-        assertEquals(expectedEntity.id, actualEntity.id)
-        assertEquals(expectedEntity.version, actualEntity.version)
-        assertEquals(expectedEntity.productId, actualEntity.productId)
-        assertEquals(expectedEntity.name, actualEntity.name)
-        assertEquals(expectedEntity.weight, actualEntity.weight)
+    private fun areProductsEqual(expectedEntity: ProductEntity, actualEntity: ProductEntity): Boolean {
+        return expectedEntity.id == actualEntity.id &&
+                expectedEntity.version == actualEntity.version &&
+                expectedEntity.productId == actualEntity.productId &&
+                expectedEntity.name == actualEntity.name &&
+                expectedEntity.weight == actualEntity.weight
     }
 }

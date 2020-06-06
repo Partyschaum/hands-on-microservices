@@ -5,6 +5,7 @@ import io.swagger.annotations.ApiOperation
 import io.swagger.annotations.ApiResponse
 import io.swagger.annotations.ApiResponses
 import org.springframework.web.bind.annotation.*
+import reactor.core.publisher.Mono
 
 @Api
 interface ProductCompositeService {
@@ -22,7 +23,7 @@ interface ProductCompositeService {
             value = ["/product-composite/{productId}"],
             produces = ["application/json"]
     )
-    fun getCompositeProduct(@PathVariable productId: Int): ProductAggregate
+    fun getCompositeProduct(@PathVariable productId: Int): Mono<ProductAggregate>
 
     @ApiOperation(
             value = "\${api.product-composite.create-composite-product.description}",

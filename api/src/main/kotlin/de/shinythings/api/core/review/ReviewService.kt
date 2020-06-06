@@ -1,6 +1,7 @@
 package de.shinythings.api.core.review
 
 import org.springframework.web.bind.annotation.*
+import reactor.core.publisher.Flux
 
 interface ReviewService {
 
@@ -8,7 +9,7 @@ interface ReviewService {
             value = ["/review"],
             produces = ["application/json"]
     )
-    fun getReviews(@RequestParam(value = "productId", required = true) productId: Int): List<Review>
+    fun getReviews(@RequestParam(value = "productId", required = true) productId: Int): Flux<Review>
 
     @PostMapping(
             value = ["/review"],

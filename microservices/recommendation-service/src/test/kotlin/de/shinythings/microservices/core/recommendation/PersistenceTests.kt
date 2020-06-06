@@ -11,7 +11,6 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.data.mongo.DataMongoTest
 import org.springframework.dao.DuplicateKeyException
 import org.springframework.dao.OptimisticLockingFailureException
-import org.springframework.data.repository.findByIdOrNull
 
 @DataMongoTest
 @TestInstance(TestInstance.Lifecycle.PER_METHOD)
@@ -24,10 +23,10 @@ class PersistenceTests {
 
     @BeforeEach
     fun setupDb() {
-        repository.deleteAll()
+        repository.deleteAll().block()
 
         val entity = RecommendationEntity(productId = 1, recommendationId = 2, author = "a", rating = 3, content = "c")
-        savedEntity = repository.save(entity)
+        savedEntity = repository.save(entity).block()!!
 
         assertEqualsRecommendation(entity, savedEntity)
     }
@@ -35,9 +34,9 @@ class PersistenceTests {
     @Test
     fun create() {
         val newEntity = RecommendationEntity(productId = 1, recommendationId = 3, author = "a", rating = 3, content = "c")
-        repository.save(newEntity)
+        repository.save(newEntity).block()
 
-        val foundEntity = repository.findByIdOrNull(newEntity.id!!)!!
+        val foundEntity = repository.findById(newEntity.id!!).block()!!
 
         assertEqualsRecommendation(newEntity, foundEntity)
         assertEquals(2, repository.count())
@@ -46,9 +45,9 @@ class PersistenceTests {
     @Test
     fun update() {
         savedEntity = savedEntity.copy(author = "a2")
-        repository.save(savedEntity)
+        repository.save(savedEntity).block()
 
-        val foundEntity = repository.findByIdOrNull(savedEntity.id!!)!!
+        val foundEntity = repository.findById(savedEntity.id!!).block()!!
 
         assertEquals(1, foundEntity.version)
         assertEquals("a2", foundEntity.author)
@@ -56,17 +55,17 @@ class PersistenceTests {
 
     @Test
     fun delete() {
-        repository.delete(savedEntity)
+        repository.delete(savedEntity).block()
 
-        assertFalse(repository.existsById(savedEntity.id!!))
+        assertFalse(repository.existsById(savedEntity.id!!).block()!!)
     }
 
     @Test
     fun getByProductId() {
         val newEntity = RecommendationEntity(productId = 1, recommendationId = 3, author = "a", rating = 3, content = "c")
-        repository.save(newEntity)
+        repository.save(newEntity).block()
 
-        val entityList = repository.findByProductId(savedEntity.productId)
+        val entityList = repository.findByProductId(savedEntity.productId).collectList().block()!!
 
         assertThat(entityList, hasSize(2))
         assertEqualsRecommendation(savedEntity, entityList[0])
@@ -76,29 +75,29 @@ class PersistenceTests {
     fun duplicateError() {
         assertThrows<DuplicateKeyException> {
             val entity = RecommendationEntity(productId = 1, recommendationId = 2, author = "a", rating = 3, content = "c")
-            repository.save(entity)
+            repository.save(entity).block()
         }
     }
 
     @Test
     fun optimisticLockError() {
         // Store the saved entity in two separate entity objects
-        val entity1 = repository.findByIdOrNull(savedEntity.id!!)!!
-        val entity2 = repository.findByIdOrNull(savedEntity.id!!)!!
+        val entity1 = repository.findById(savedEntity.id!!).block()!!
+        val entity2 = repository.findById(savedEntity.id!!).block()!!
 
         // Update the entity using the first entity object
-        repository.save(entity1.copy(author = "a1"))
+        repository.save(entity1.copy(author = "a1")).block()
 
         // Update the entity using the second entity object.
         // This should fail since the second entity now holds a old version number, i.e. a Optimistic Lock Error
         try {
-            repository.save(entity2.copy(author = "a2"))
+            repository.save(entity2.copy(author = "a2")).block()
             fail("Expected an OptimisticLockingFailureException")
         } catch (e: OptimisticLockingFailureException) {
         }
 
         // Get the updated entity from the database and verify its new sate
-        val updatedEntity = repository.findByIdOrNull(savedEntity.id!!)!!
+        val updatedEntity = repository.findById(savedEntity.id!!).block()!!
 
         assertEquals(1, updatedEntity.version)
         assertEquals("a1", updatedEntity.author)

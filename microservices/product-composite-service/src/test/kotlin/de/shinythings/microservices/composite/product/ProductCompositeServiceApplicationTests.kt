@@ -24,6 +24,7 @@ import org.springframework.http.HttpStatus.OK
 import org.springframework.http.MediaType.APPLICATION_JSON
 import org.springframework.test.web.reactive.server.WebTestClient
 import org.springframework.test.web.reactive.server.WebTestClient.BodyContentSpec
+import reactor.core.publisher.Flux.fromIterable
 import reactor.core.publisher.Mono.just
 
 @SpringBootTest(webEnvironment = RANDOM_PORT)
@@ -40,13 +41,13 @@ class ProductCompositeServiceApplicationTests {
     @BeforeEach
     fun setUp() {
         `when`(compositeIntegration.getProduct(PRODUCT_ID_OK))
-                .thenReturn(Product(PRODUCT_ID_OK, "name", 1, "mock-address"))
+                .thenReturn(just(Product(PRODUCT_ID_OK, "name", 1, "mock-address")))
 
         `when`(compositeIntegration.getRecommendations(PRODUCT_ID_OK))
-                .thenReturn(listOf(Recommendation(PRODUCT_ID_OK, 1, "author", 1, "content", "mock address")))
+                .thenReturn(fromIterable(listOf(Recommendation(PRODUCT_ID_OK, 1, "author", 1, "content", "mock address"))))
 
         `when`(compositeIntegration.getReviews(PRODUCT_ID_OK))
-                .thenReturn(listOf(Review(PRODUCT_ID_OK, 1, "author", "subject", "content", "mock address")))
+                .thenReturn(fromIterable(listOf(Review(PRODUCT_ID_OK, 1, "author", "subject", "content", "mock address"))))
 
         `when`(compositeIntegration.getProduct(PRODUCT_ID_NOT_FOUND))
                 .thenThrow(NotFoundException("NOT FOUND: $PRODUCT_ID_NOT_FOUND"))

@@ -8,6 +8,7 @@ import de.shinythings.util.http.ServiceUtil
 import org.slf4j.LoggerFactory
 import org.springframework.dao.DuplicateKeyException
 import org.springframework.web.bind.annotation.RestController
+import reactor.core.publisher.Flux
 
 @RestController
 class RecommendationServiceImpl(
@@ -18,30 +19,26 @@ class RecommendationServiceImpl(
 
     private val logger = LoggerFactory.getLogger(RecommendationService::class.java)
 
-    override fun getRecommendations(productId: Int): List<Recommendation> {
+    override fun getRecommendations(productId: Int): Flux<Recommendation> {
         if (productId < 1) throw InvalidInputException("Invalid productId: $productId")
 
-        val entityList = repository.findByProductId(productId)
-        val recommendations = mapper.entityListToApiList(entityList).map {
-            it.copy(serviceAddress = serviceUtil.serviceAddress)
-        }
-
-        return recommendations.also {
-            logger.debug("/recommendation response size: {}", it.size)
-        }
+        return repository.findByProductId(productId)
+                .log()
+                .map { mapper.entityToApi(it!!) }
+                .map { it!!.copy(serviceAddress = serviceUtil.serviceAddress) }
     }
 
     override fun createRecommendation(body: Recommendation): Recommendation {
-        return try {
-            val entity = mapper.apiToEntity(body)
-            val newEntity = repository.save(entity)
 
-            mapper.entityToApi(newEntity).also {
-                logger.debug("createRecommendation: created a recommendation entity: {}/{}", it.productId, it.recommendationId)
-            }
-        } catch (dke: DuplicateKeyException) {
-            throw InvalidInputException("Duplicate key, Product Id: ${body.productId}, Recommendation Id: ${body.recommendationId}")
-        }
+        if (body.productId < 1) throw InvalidInputException("Invalid productId: ${body.productId}")
+
+        val entity = mapper.apiToEntity(body)
+
+        return repository.save(entity)
+                .log()
+                .onErrorMap(DuplicateKeyException::class.java) { InvalidInputException("Duplicate key, Product Id: ${body.productId}, Recommendation Id: ${body.recommendationId}") }
+                .map { mapper.entityToApi(it) }
+                .block()!!
     }
 
     override fun deleteRecommendations(productId: Int) {

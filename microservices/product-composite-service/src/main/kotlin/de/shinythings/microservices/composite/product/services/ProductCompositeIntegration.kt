@@ -12,19 +12,24 @@ import de.shinythings.util.exceptions.NotFoundException
 import de.shinythings.util.http.HttpErrorInfo
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
-import org.springframework.core.ParameterizedTypeReference
-import org.springframework.http.HttpMethod.GET
 import org.springframework.http.HttpStatus.NOT_FOUND
 import org.springframework.http.HttpStatus.UNPROCESSABLE_ENTITY
 import org.springframework.stereotype.Component
 import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.RestTemplate
+import org.springframework.web.reactive.function.client.WebClient
+import org.springframework.web.reactive.function.client.WebClientResponseException
 import org.springframework.web.util.UriComponentsBuilder
+import reactor.core.publisher.Flux
+import reactor.core.publisher.Flux.empty
+import reactor.core.publisher.Mono
 import java.io.IOException
 import java.net.URI
 
 @Component
 class ProductCompositeIntegration(
+        webClientBuilder: WebClient.Builder,
+
         private val restTemplate: RestTemplate,
         private val objectMapper: ObjectMapper,
 
@@ -41,14 +46,19 @@ class ProductCompositeIntegration(
         @Value("\${app.review-service.https}") private val reviewServiceHttps: Boolean
 ) : ProductService, RecommendationService, ReviewService {
 
+    private val webclient: WebClient by lazy { webClientBuilder.build() }
+
     private val logger = LoggerFactory.getLogger(ProductCompositeIntegration::class.java)
 
-    override fun getProduct(productId: Int): Product? {
-        return try {
-            restTemplate.getForObject(productServiceUrl(productId), Product::class.java)
-        } catch (ex: HttpClientErrorException) {
-            throw handleHttpClientException(ex)
-        }
+    override fun getProduct(productId: Int): Mono<Product> {
+        return webclient.get()
+                .uri(productServiceUrl(productId))
+                .retrieve()
+                .bodyToMono(Product::class.java)
+                .log()
+                .onErrorMap(WebClientResponseException::class.java) { ex ->
+                    handleNonBlockingHttpClientException(ex)
+                }
     }
 
     override fun createProduct(body: Product): Product {
@@ -77,26 +87,17 @@ class ProductCompositeIntegration(
         }
     }
 
-    override fun getRecommendations(productId: Int): List<Recommendation> {
-        return try {
-            val uri = recommendationServiceUrl(productId)
+    override fun getRecommendations(productId: Int): Flux<Recommendation> {
+        val uri = recommendationServiceUrl(productId)
 
-            logger.debug("Will call getRecommendations API on URL: {}", uri)
+        logger.debug("Will call getRecommendations API on URL: {}", uri)
 
-            val recommendations = restTemplate.exchange(
-                    uri,
-                    GET,
-                    null,
-                    object : ParameterizedTypeReference<List<Recommendation>>() {}
-            ).body ?: emptyList()
-
-            logger.debug("Found {} recommendations for a product with id: {}", recommendations.size, productId)
-
-            recommendations
-        } catch (ex: Exception) {
-            logger.warn("Got an exception while requesting recommendations, return zero recommendations: {}", ex.message)
-            return emptyList()
-        }
+        return webclient.get()
+                .uri(uri)
+                .retrieve()
+                .bodyToFlux(Recommendation::class.java)
+                .log()
+                .onErrorResume { empty() }
     }
 
     override fun createRecommendation(body: Recommendation): Recommendation {
@@ -125,26 +126,17 @@ class ProductCompositeIntegration(
         }
     }
 
-    override fun getReviews(productId: Int): List<Review> {
-        return try {
-            val uri = reviewServiceUrl(productId)
+    override fun getReviews(productId: Int): Flux<Review> {
+        val uri = reviewServiceUrl(productId)
 
-            logger.debug("Will call getReviews API on URL: {}", uri)
+        logger.debug("Will call getReviews API on URL: {}", uri)
 
-            val reviews = restTemplate.exchange(
-                    uri,
-                    GET,
-                    null,
-                    object : ParameterizedTypeReference<List<Review>>() {}
-            ).body ?: emptyList()
-
-            logger.debug("Found {} recommendations for a product with id: {}", reviews.size, productId)
-
-            reviews
-        } catch (ex: Exception) {
-            logger.warn("Got an exception while requesting reviews, return zero reviews: {}", ex.message)
-            return emptyList()
-        }
+        return webclient.get()
+                .uri(uri)
+                .retrieve()
+                .bodyToFlux(Review::class.java)
+                .log()
+                .onErrorResume { empty() }
     }
 
     override fun createReview(body: Review): Review {
@@ -212,7 +204,31 @@ class ProductCompositeIntegration(
         }
     }
 
+    private fun handleNonBlockingHttpClientException(ex: Throwable): Throwable {
+        if (ex !is WebClientResponseException) {
+            logger.warn("Got a unexpected error: {}, will rethrow it", ex.toString())
+            return ex
+        }
+
+        return when (ex.statusCode) {
+            NOT_FOUND -> NotFoundException(errorMessage(ex))
+            UNPROCESSABLE_ENTITY -> InvalidInputException(errorMessage(ex))
+            else -> {
+                logger.warn("Got a unexpected HTTP error: {}, will rethrow it", ex.statusCode)
+                logger.warn("Error body: {}", ex.responseBodyAsString)
+                ex
+            }
+        }
+    }
+
     private fun errorMessage(ex: HttpClientErrorException): String? = try {
+        objectMapper.readValue(ex.responseBodyAsString, HttpErrorInfo::class.java).message
+    } catch (_: IOException) {
+        logger.warn("Could not deserialize HttpErrorInfo from {}", ex.responseBodyAsString)
+        ex.message
+    }
+
+    private fun errorMessage(ex: WebClientResponseException): String? = try {
         objectMapper.readValue(ex.responseBodyAsString, HttpErrorInfo::class.java).message
     } catch (_: IOException) {
         logger.warn("Could not deserialize HttpErrorInfo from {}", ex.responseBodyAsString)

@@ -4,10 +4,15 @@ import de.shinythings.api.composite.product.*
 import de.shinythings.api.core.product.Product
 import de.shinythings.api.core.recommendation.Recommendation
 import de.shinythings.api.core.review.Review
-import de.shinythings.util.exceptions.NotFoundException
 import de.shinythings.util.http.ServiceUtil
 import org.slf4j.LoggerFactory
 import org.springframework.web.bind.annotation.RestController
+import reactor.core.publisher.Mono
+import reactor.core.publisher.zip
+import reactor.kotlin.core.publisher.zip
+import java.util.function.Consumer
+import java.util.function.Function
+
 
 @RestController
 class ProductCompositeServiceImpl(
@@ -17,19 +22,32 @@ class ProductCompositeServiceImpl(
 
     private val logger = LoggerFactory.getLogger(ProductCompositeServiceImpl::class.java)
 
-    override fun getCompositeProduct(productId: Int): ProductAggregate {
-        logger.debug("getCompositeProduct: lookup a product aggregate for productId: {}", productId)
-
-        val product = integration.getProduct(productId)
-                ?: throw NotFoundException("No product found for productId: $productId")
-
-        val recommendations = integration.getRecommendations(productId)
-
-        val reviews = integration.getReviews(productId)
-
-        logger.debug("getCompositeProduct: aggregate entity found for productId: {}", productId)
-
-        return createProductAggregate(product, recommendations, reviews, serviceUtil.serviceAddress)
+    override fun getCompositeProduct(productId: Int): Mono<ProductAggregate> {
+//        return zip(
+//                integration.getProduct(productId),
+//                integration.getRecommendations(productId),
+//                integration.getReviews(productId)
+//        ) { values : Array<*> ->
+//            createProductAggregate(
+//                    product = values[0] as Product,
+//                    recommendations = values[1] as List<Recommendation>,
+//                    reviews = values[2] as List<Review>,
+//                    serviceAddress = serviceUtil.serviceAddress
+//            )
+//        }.doOnError { ex -> logger.warn("getCompositeProduct failed: {}", ex.toString()) }
+//                .log()
+        return Mono.zip(
+                Function { values: Array<Any?> -> createProductAggregate((values[0] as Product?)!!, values[1] as List<Recommendation>, values[2] as List<Review>, serviceUtil.serviceAddress) },
+                integration.getProduct(productId),
+                integration.getRecommendations(productId).collectList(),
+                integration.getReviews(productId).collectList())
+                .doOnError(Consumer { ex: Throwable -> logger.warn("getCompositeProduct failed: {}", ex.toString()) })
+                .log()
+//        return whenComplete(
+//                integration.getProduct(productId),
+//                integration.getRecommendations(productId).toFlux(),
+//                integration.getReviews(productId).toFlux()
+//        ).map { it -> i }
     }
 
     override fun createCompositeProduct(body: ProductAggregate) {
